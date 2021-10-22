@@ -9,9 +9,9 @@ from botocore.exceptions import ClientError
 import json
 import os
 import time
-import datetime
-from dateutil import tz
 import csv
+from time import sleep
+from datetime import datetime
 
 
 import logging
@@ -22,7 +22,7 @@ logging.getLogger('boto3').setLevel(logging.WARNING)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 CSV_HEADER = ['AccountId', 'BucketName', 'Region', 'FileExtension', 'Severity', 'FindingType',
-              'FindingCount', 'Details', 'ObjectKey', 'S3Path', 'URLPath', 'FindingConsoleURL']
+              'FindingCount', 'Details', 'ObjectKey', 'S3Path', 'URLPath', 'FindingConsoleURL', 'Finding Creation Date', 'Object-level Public ACL']
 
 
 def main(args, logger):
@@ -63,6 +63,16 @@ def main(args, logger):
                     # No need to add a severity filter
                     pass
 
+            if args.since:
+                end_time = datetime.now()
+                start_time = datetime.strptime(args.since, "%Y-%m-%d")
+                findingCriteria['criterion']['createdAt'] = {
+                    'gte': int(start_time.timestamp())*1000,
+                    'lte': int(end_time.timestamp())*1000
+                    }
+
+            logger.debug(f"findingCriteria: {json.dumps(findingCriteria, indent=2)}")
+
             # Macie is annyoing in that I have to list each findings, then pass the list of ids to the
             # get_findings() API to get any useful details. Bah
             list_response = macie_client.list_findings(
@@ -81,17 +91,23 @@ def main(args, logger):
                 bucket_name = f['resourcesAffected']['s3Bucket']['name']
                 key = f['resourcesAffected']['s3Object']['key']
                 summary, count = get_summary(f)
+                obj_publicAccess = "Unknown"
+                if 'publicAccess' in f['resourcesAffected']['s3Object']:
+                    obj_publicAccess = f['resourcesAffected']['s3Object']['publicAccess']
                 writer.writerow([f['accountId'], bucket_name, r,
                                 f['resourcesAffected']['s3Object']['extension'],
                                 f['severity']['description'], f['type'],
                                 count, summary, key,
                                 f"s3://{bucket_name}/{key}",
                                 f"https://{bucket_name}.s3.amazonaws.com/{key}",
-                                f"https://{r}.console.aws.amazon.com/macie/home?region={r}#findings?search=resourcesAffected.s3Bucket.name%3D{bucket_name}&macros=current&itemId={f['id']}"])
+                                f"https://{r}.console.aws.amazon.com/macie/home?region={r}#findings?search=resourcesAffected.s3Bucket.name%3D{bucket_name}&macros=current&itemId={f['id']}",
+                                f['createdAt'], obj_publicAccess
+                                ])
                 results[f['severity']['description']] += 1
 
             # pagination is a pita. Here we continue to the List pagination
             while 'nextToken' in list_response:
+                sleep(0.5)
                 list_response = macie_client.list_findings(
                     findingCriteria=findingCriteria,
                     maxResults=40,
@@ -104,13 +120,18 @@ def main(args, logger):
                     bucket_name = f['resourcesAffected']['s3Bucket']['name']
                     key = f['resourcesAffected']['s3Object']['key']
                     summary, count = get_summary(f)
+                    obj_publicAccess = "Unknown"
+                    if 'publicAccess' in f['resourcesAffected']['s3Object']:
+                        obj_publicAccess = f['resourcesAffected']['s3Object']['publicAccess']
                     writer.writerow([f['accountId'], bucket_name, r,
                                     f['resourcesAffected']['s3Object']['extension'],
                                     f['severity']['description'], f['type'],
                                     count, summary, key,
                                     f"s3://{bucket_name}/{key}",
                                     f"https://{bucket_name}.s3.amazonaws.com/{key}",
-                                    f"https://{r}.console.aws.amazon.com/macie/home?region={r}#findings?search=resourcesAffected.s3Bucket.name%3D{bucket_name}&macros=current&itemId={f['id']}"])
+                                    f"https://{r}.console.aws.amazon.com/macie/home?region={r}#findings?search=resourcesAffected.s3Bucket.name%3D{bucket_name}&macros=current&itemId={f['id']}",
+                                    f['createdAt'], obj_publicAccess
+                                    ])
                     results[f['severity']['description']] += 1
 
     print(f"Exported High: {results['High']} Medium: {results['Medium']} Low: {results['Low']} ")
@@ -146,6 +167,7 @@ def do_args():
     parser.add_argument("--region", help="Only Process this region")
     parser.add_argument("--bucket", help="Only price out this bucket")
     parser.add_argument("--filename", help="Save to filename", required=True)
+    parser.add_argument("--since", help="Only output findings after this date - specified as YYYY-MM-DD")
     parser.add_argument("--severity", help="Filter on this severity and higher",
                         choices=['High', 'Medium', 'Low'], default='Medium')
 
