@@ -5,6 +5,8 @@
 *-config.json
 *dist-info
 
+*.csv
+
 # Manifests are inputs to Cloudformation. They contain deploy specific things (like payer accounts)
 *Manifest.yaml
 cloudformation/*Transformed*.yaml
