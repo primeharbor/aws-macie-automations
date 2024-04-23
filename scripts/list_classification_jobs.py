@@ -59,7 +59,7 @@ def main(args, logger):
 
         for j in response['items']:
             if 'bucketCriteria' in j and j['bucketCriteria'] == PUBLIC_CRITERIA['bucketCriteria']:
-                print(f"{j['name']} in {r} type {j['jobType']} status {j['jobStatus']} Created {j['createdAt'].date()} for public buckets ")
+                print(f"{j['name']} in {r} type {j['jobType']} status {j['jobStatus']} Created {j['createdAt'].date()} for public buckets {j['jobId']}")
             elif 'bucketDefinitions' in j:
                 for bd in j['bucketDefinitions']:
                     print(f"{j['name']} in {r} type {j['jobType']} status {j['jobStatus']} Created {j['createdAt'].date()} for {bd['buckets']} in account {bd['accountId']} ")

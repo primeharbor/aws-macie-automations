@@ -54,6 +54,9 @@ def main(args, logger):
             if args.bucket:
                 findingCriteria['criterion']['resourcesAffected.s3Bucket.name'] = {'eq': [args.bucket]}
 
+            if args.job_id:
+                findingCriteria['criterion']['classificationDetails.jobId'] = {'eq': [args.job_id]}
+
             if args.severity:
                 if args.severity == "High":
                     findingCriteria['criterion']['severity.description'] = {'eq': ["High"]}
@@ -166,6 +169,7 @@ def do_args():
     parser.add_argument("--error", help="print error info only", action='store_true')
     parser.add_argument("--region", help="Only Process this region")
     parser.add_argument("--bucket", help="Only price out this bucket")
+    parser.add_argument("--job-id", help="Only return results from this job id")
     parser.add_argument("--filename", help="Save to filename", required=True)
     parser.add_argument("--since", help="Only output findings after this date - specified as YYYY-MM-DD")
     parser.add_argument("--severity", help="Filter on this severity and higher",
