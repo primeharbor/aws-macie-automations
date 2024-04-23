@@ -62,12 +62,16 @@ def main(args, logger):
         else:
             regional_cost = 0
             regional_size = 0
-            response = macie_client.describe_buckets(criteria=PUBLIC_CRITERIA)
-            for b in response['buckets']:
-                regional_cost += get_bucket_cost(b)
-                regional_size += b['classifiableSizeInBytes']
+            regional_count = 0
+            paginator = macie_client.get_paginator('describe_buckets')
+            response = paginator.paginate(criteria=PUBLIC_CRITERIA)
+            for page in response:
+                for b in page['buckets']:
+                    regional_cost += get_bucket_cost(b)
+                    regional_size += b['classifiableSizeInBytes']
+                    regional_count += 1
 
-            print(f"Public Scan in {r} will cost US${int(regional_cost):,} size: {int(regional_size/DIVISOR):,} GB")
+            print(f"Public Scan in {r} will cost US${int(regional_cost):,} size: {int(regional_size/DIVISOR):,} GB for {regional_count} buckets")
 
             total_cost += regional_cost
             total_size += regional_size
